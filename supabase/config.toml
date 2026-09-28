@@ -1,0 +1,10 @@
+project_id = "hospital-nurse"
+
+[functions.username-login]
+verify_jwt = false
+
+[functions.student-lookup]
+verify_jwt = false
+
+[functions.service-submit]
+verify_jwt = false
