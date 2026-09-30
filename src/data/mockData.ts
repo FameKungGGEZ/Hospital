@@ -23,6 +23,7 @@ export const noteOptions: NoteOption[] = [
   { id: 'go_home', label: 'กลับบ้าน', tone: 'neutral' },
   { id: 'accident', label: 'อุบัติเหตุ', tone: 'accident' },
   { id: 'send_hospital', label: 'ส่ง รพ.', tone: 'neutral' },
+  { id: 'return_class', label: 'กลับห้องเรียน', tone: 'neutral' },
   { id: 'other', label: 'อื่นๆ', tone: 'neutral' },
 ]
 

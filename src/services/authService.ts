@@ -66,3 +66,21 @@ export async function signOutStaff(): Promise<void> {
   if (!supabase) return
   await supabase.auth.signOut()
 }
+
+export async function changeStaffPassword(currentPassword: string, newPassword: string): Promise<void> {
+  if (!supabase || !isSupabaseConfigured) {
+    throw new Error('ยังไม่ได้เชื่อมต่อ Supabase')
+  }
+
+  const { data, error: userError } = await supabase.auth.getUser()
+  if (userError || !data.user?.email) throw new Error('ตรวจสอบบัญชีปัจจุบันไม่สำเร็จ')
+
+  const { error: passwordError } = await supabase.auth.signInWithPassword({
+    email: data.user.email,
+    password: currentPassword,
+  })
+  if (passwordError) throw new Error('รหัสผ่านปัจจุบันไม่ถูกต้อง')
+
+  const { error } = await supabase.auth.updateUser({ password: newPassword })
+  if (error) throw new Error('เปลี่ยนรหัสผ่านไม่สำเร็จ กรุณาลองใหม่')
+}

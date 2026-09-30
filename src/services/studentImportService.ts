@@ -1,7 +1,7 @@
 import { readSheet } from 'read-excel-file/browser'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import type { Sex, Student } from '../types'
-import { saveStudentDirectory } from './browserDataStore'
+import { getStudentDirectory, saveStudentDirectory } from './browserDataStore'
 import { getCurrentStudentRoster } from './studentRepository'
 
 export type StudentImportStatus = 'new' | 'same' | 'changed' | 'invalid'
@@ -205,6 +205,19 @@ export async function commitStudentRoster(rows: StudentImportRow[]): Promise<Stu
     }
   }
 
-  saveStudentDirectory(importedStudents)
-  return { academicYear, studentCount: importedStudents.length, newStudentCount: importedStudents.length }
+  const currentStudents = getStudentDirectory()
+  const currentYearHasRoster = currentStudents.some((student) => student.academic_year === academicYear)
+  const mergedStudents = new Map(
+    (currentYearHasRoster ? currentStudents : [])
+      .map((student) => [student.student_id, student]),
+  )
+  for (const student of importedStudents) mergedStudents.set(student.student_id, student)
+
+  const nextDirectory = [...mergedStudents.values()]
+  saveStudentDirectory(nextDirectory)
+  return {
+    academicYear,
+    studentCount: nextDirectory.filter((student) => student.academic_year === academicYear).length,
+    newStudentCount: rows.filter((row) => row.status === 'new').length,
+  }
 }

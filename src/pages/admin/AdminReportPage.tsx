@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AdminLayout } from '../../components/layout/AdminLayout'
+import { isSupabaseConfigured } from '../../lib/supabase'
 import { getIllnessStatistics } from '../../services/fileExportService'
 
 function AdminReportPage() {
@@ -22,9 +23,10 @@ function AdminReportPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Report</h1>
-          <p className="mt-1 text-sm text-amber-700">โหมดทดสอบ: คำนวณจากข้อมูลที่บันทึกในเบราว์เซอร์นี้</p>
+          <p className={`mt-1 text-sm ${isSupabaseConfigured ? 'text-emerald-700' : 'text-amber-700'}`}>
+            {isSupabaseConfigured ? 'คำนวณจากข้อมูล Supabase' : 'โหมดทดสอบ: คำนวณจากข้อมูลในเบราว์เซอร์นี้'}
+          </p>
         </div>
-
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <select value={academicYear} onChange={(event) => { setAcademicYear(event.target.value); setLoading(true); setError('') }} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm">

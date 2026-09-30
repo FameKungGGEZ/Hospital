@@ -11,7 +11,11 @@ export async function lookupStudentById(studentId: string): Promise<Student | un
   const { data, error } = await supabase.functions.invoke<{ student: Student }>('student-lookup', {
     body: { student_id: studentId },
   })
-  if (error) throw new Error('ค้นหาข้อมูลนักเรียนไม่สำเร็จ กรุณาลองใหม่')
+  if (error) {
+    const response = 'context' in error ? error.context : undefined
+    if (response instanceof Response && response.status === 404) return undefined
+    throw new Error('ค้นหาข้อมูลนักเรียนไม่สำเร็จ กรุณาลองใหม่')
+  }
   return data?.student
 }
 
@@ -23,7 +27,7 @@ export const createServiceRecord = async (studentId: string, selectedItems: stri
     for (const selectedItem of selectedItems) {
       const otherSeparator = selectedItem.indexOf(':')
       const itemCode = otherSeparator < 0 ? selectedItem : selectedItem.slice(0, otherSeparator)
-      itemCodes.push(itemCode)
+      if (!itemCodes.includes(itemCode)) itemCodes.push(itemCode)
       if (itemCode === 'other' && otherSeparator >= 0) {
         otherDetail = selectedItem.slice(otherSeparator + 1).trim()
       }

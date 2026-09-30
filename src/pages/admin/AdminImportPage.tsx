@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { AlertCircle, CheckCircle2, FileSpreadsheet, Upload } from 'lucide-react'
 import { AdminLayout } from '../../components/layout/AdminLayout'
 import { Button } from '../../components/ui/Button'
+import { isSupabaseConfigured } from '../../lib/supabase'
 import { downloadStudentTemplate } from '../../services/fileExportService'
 import { commitStudentRoster, previewStudentImport } from '../../services/studentImportService'
 import type { StudentImportRow } from '../../services/studentImportService'
@@ -102,21 +103,25 @@ function AdminImportPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Import</h1>
-          <p className="mt-1 text-sm text-amber-700">โหมดทดสอบ: ข้อมูลจะเก็บในเบราว์เซอร์นี้ ยังไม่ซิงก์กับฐานข้อมูลกลาง</p>
+          <p className={`mt-1 text-sm ${isSupabaseConfigured ? 'text-emerald-700' : 'text-amber-700'}`}>
+            {isSupabaseConfigured ? 'ข้อมูลจะบันทึกลง Supabase' : 'โหมดทดสอบ: ข้อมูลจะเก็บในเบราว์เซอร์นี้'}
+          </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-6 flex flex-wrap gap-2">
-            {steps.map((label, index) => (
-              <div
-                key={label}
-                className={`rounded-full px-3 py-1.5 text-sm font-medium ${
-                  index <= step ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'
-                }`}
-              >
-                {index + 1}. {label}
-              </div>
-            ))}
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="sticky top-0 z-20 mb-4 rounded-2xl border border-slate-200 bg-white/90 p-2 shadow-sm backdrop-blur-sm sm:mb-6">
+            <div className="flex flex-wrap gap-2">
+              {steps.map((label, index) => (
+                <div
+                  key={label}
+                  className={`rounded-full px-2.5 py-1.5 text-[11px] font-medium sm:px-3 sm:text-sm ${
+                    index <= step ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  {index + 1}. {label}
+                </div>
+              ))}
+            </div>
           </div>
 
           {step === 0 ? (
@@ -132,7 +137,7 @@ function AdminImportPage() {
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5"
                   />
                 </label>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600 leading-relaxed">
                   ใช้คอลัมน์ Number → Student_ID → Sex → Name → Surname → Class; อ่านปีจากข้อความด้านบน และรองรับเพศ ช./ญ.
                 </div>
               </div>
@@ -143,17 +148,17 @@ function AdminImportPage() {
                 className="hidden"
                 onChange={(event) => void handleFile(event.target.files?.[0])}
               />
-              <div className="rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+              <div className="rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-5 text-center sm:p-8">
                 <FileSpreadsheet className="mx-auto text-emerald-700" size={32} />
-                <p className="mt-3 text-lg font-semibold text-slate-700">เลือกไฟล์รายชื่อนักเรียน</p>
+                <p className="mt-3 text-base font-semibold text-slate-700 sm:text-lg">เลือกไฟล์รายชื่อนักเรียน</p>
                 <p className="mt-2 text-sm text-slate-500">รองรับ .xlsx ขนาดไม่เกิน 10 MB</p>
                 <div className="mt-5 flex justify-center">
-                  <div className="flex flex-wrap justify-center gap-3">
-                    <Button disabled={isReading} onClick={() => fileInputRef.current?.click()}>
+                  <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:justify-center">
+                    <Button className="w-full sm:w-auto" disabled={isReading} onClick={() => fileInputRef.current?.click()}>
                       <Upload size={16} className="mr-2" />
                       {isReading ? 'กำลังอ่านไฟล์...' : 'เลือกไฟล์'}
                     </Button>
-                    <Button variant="secondary" disabled={isDownloadingTemplate} onClick={() => void downloadTemplate()}>
+                    <Button className="w-full sm:w-auto" variant="secondary" disabled={isDownloadingTemplate} onClick={() => void downloadTemplate()}>
                       {isDownloadingTemplate ? 'กำลังสร้างแม่แบบ...' : 'ดาวน์โหลดแม่แบบ'}
                     </Button>
                   </div>
@@ -178,9 +183,9 @@ function AdminImportPage() {
                 <CountTile label="ข้อมูลเปลี่ยน" value={counts.changed} />
                 <CountTile label="ข้อมูลผิดพลาด" value={counts.invalid} />
               </div>
-              <div className="flex justify-end gap-3">
-                <Button variant="secondary" onClick={() => setStep(0)}>ย้อนกลับ</Button>
-                <Button onClick={() => setStep(2)}>ต่อไป</Button>
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <Button className="w-full sm:w-auto" variant="secondary" onClick={() => setStep(0)}>ย้อนกลับ</Button>
+                <Button className="w-full sm:w-auto" onClick={() => setStep(2)}>ต่อไป</Button>
               </div>
             </div>
           ) : null}
@@ -191,68 +196,70 @@ function AdminImportPage() {
                 <h3 className="text-lg font-bold text-slate-900">ตรวจข้อมูลซ้ำและความถูกต้อง</h3>
                 <p className="mt-1 text-sm text-slate-500">ข้อมูลที่เปลี่ยนเลือกได้ว่าจะใช้ข้อมูลใหม่หรือเก็บข้อมูลเดิม ต้องแก้แถวผิดพลาดก่อนจึงยืนยันได้</p>
               </div>
-              <div className="max-h-[28rem] overflow-auto rounded-2xl border border-slate-200">
-                <table className="min-w-[1250px] text-left text-sm">
-                  <thead className="sticky top-0 bg-slate-50">
-                    <tr>
-                      <th className="px-4 py-3">แถว</th>
-                      <th className="px-4 py-3">Number</th>
-                      <th className="px-4 py-3">Student_ID</th>
-                      <th className="px-4 py-3">Sex</th>
-                      <th className="px-4 py-3">Name</th>
-                      <th className="px-4 py-3">Surname</th>
-                      <th className="px-4 py-3">Class</th>
-                      <th className="px-4 py-3">Academic_Year</th>
-                      <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3">รายละเอียด / การตัดสินใจ</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((row) => (
-                      <tr key={row.rowNumber} className="border-t border-slate-200 align-top">
-                        <td className="px-4 py-3">{row.rowNumber}</td>
-                        <td className="px-4 py-3">{row.student?.number ?? '-'}</td>
-                        <td className="px-4 py-3">{row.student?.student_id ?? '-'}</td>
-                        <td className="px-4 py-3">{row.student?.sex ?? '-'}</td>
-                        <td className="px-4 py-3">{row.student?.name ?? '-'}</td>
-                        <td className="px-4 py-3">{row.student?.surname ?? '-'}</td>
-                        <td className="px-4 py-3">{row.student?.class_name ?? '-'}</td>
-                        <td className="px-4 py-3">{row.student?.academic_year ?? '-'}</td>
-                        <td className="px-4 py-3">
-                          <span className={`rounded-full px-2 py-1 text-xs font-medium ${
-                            row.status === 'new' ? 'bg-emerald-100 text-emerald-700' :
-                              row.status === 'same' ? 'bg-slate-100 text-slate-700' :
-                                row.status === 'changed' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-700'
-                          }`}>
-                            {statusLabels[row.status]}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          {row.status === 'changed' ? (
-                            <label className="flex items-center gap-2">
-                              <span className="sr-only">เลือกการจัดการข้อมูลที่เปลี่ยน</span>
-                              <select
-                                value={row.action}
-                                onChange={(event) => changeAction(row.rowNumber, event.target.value as 'update' | 'keep')}
-                                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5"
-                              >
-                                <option value="keep">เก็บข้อมูลเดิม</option>
-                                <option value="update">ใช้ข้อมูลใหม่</option>
-                              </select>
-                              <span className="text-xs text-slate-500">เปลี่ยน: {row.details.join(', ')}</span>
-                            </label>
-                          ) : row.details.length > 0 ? (
-                            <span className="text-rose-700">{row.details.join(' · ')}</span>
-                          ) : '—'}
-                        </td>
+              <div className="overflow-hidden rounded-2xl border border-slate-200">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-0 text-left text-[11px] sm:text-sm">
+                    <thead className="bg-slate-50">
+                      <tr>
+                        <th className="px-2 py-2.5 sm:px-4 sm:py-3">แถว</th>
+                        <th className="hidden px-2 py-2.5 md:table-cell sm:px-4 sm:py-3">Number</th>
+                        <th className="hidden px-2 py-2.5 lg:table-cell sm:px-4 sm:py-3">Student_ID</th>
+                        <th className="px-2 py-2.5 sm:px-4 sm:py-3">Sex</th>
+                        <th className="px-2 py-2.5 sm:px-4 sm:py-3">Name</th>
+                        <th className="px-2 py-2.5 sm:px-4 sm:py-3">Surname</th>
+                        <th className="px-2 py-2.5 sm:px-4 sm:py-3">Class</th>
+                        <th className="hidden px-2 py-2.5 xl:table-cell sm:px-4 sm:py-3">Academic_Year</th>
+                        <th className="px-2 py-2.5 sm:px-4 sm:py-3">Status</th>
+                        <th className="px-2 py-2.5 sm:px-4 sm:py-3">รายละเอียด / การตัดสินใจ</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {rows.map((row) => (
+                        <tr key={row.rowNumber} className="border-t border-slate-200 align-top">
+                          <td className="px-2 py-2.5 sm:px-4 sm:py-3">{row.rowNumber}</td>
+                          <td className="hidden px-2 py-2.5 md:table-cell sm:px-4 sm:py-3">{row.student?.number ?? '-'}</td>
+                          <td className="hidden px-2 py-2.5 lg:table-cell sm:px-4 sm:py-3">{row.student?.student_id ?? '-'}</td>
+                          <td className="px-2 py-2.5 sm:px-4 sm:py-3">{row.student?.sex ?? '-'}</td>
+                          <td className="px-2 py-2.5 sm:px-4 sm:py-3">{row.student?.name ?? '-'}</td>
+                          <td className="px-2 py-2.5 sm:px-4 sm:py-3">{row.student?.surname ?? '-'}</td>
+                          <td className="px-2 py-2.5 sm:px-4 sm:py-3">{row.student?.class_name ?? '-'}</td>
+                          <td className="hidden px-2 py-2.5 xl:table-cell sm:px-4 sm:py-3">{row.student?.academic_year ?? '-'}</td>
+                          <td className="px-2 py-2.5 sm:px-4 sm:py-3">
+                            <span className={`inline-block rounded-full px-2 py-1 text-[10px] font-medium sm:text-xs ${
+                              row.status === 'new' ? 'bg-emerald-100 text-emerald-700' :
+                                row.status === 'same' ? 'bg-slate-100 text-slate-700' :
+                                  row.status === 'changed' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-700'
+                            }`}>
+                              {statusLabels[row.status]}
+                            </span>
+                          </td>
+                          <td className="px-2 py-2.5 sm:px-4 sm:py-3">
+                            {row.status === 'changed' ? (
+                              <label className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                <span className="sr-only">เลือกการจัดการข้อมูลที่เปลี่ยน</span>
+                                <select
+                                  value={row.action}
+                                  onChange={(event) => changeAction(row.rowNumber, event.target.value as 'update' | 'keep')}
+                                  className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 sm:w-auto"
+                                >
+                                  <option value="keep">เก็บข้อมูลเดิม</option>
+                                  <option value="update">ใช้ข้อมูลใหม่</option>
+                                </select>
+                                <span className="text-[10px] text-slate-500 sm:text-xs">เปลี่ยน: {row.details.join(', ')}</span>
+                              </label>
+                            ) : row.details.length > 0 ? (
+                              <span className="text-[11px] text-rose-700 sm:text-xs">{row.details.join(' · ')}</span>
+                            ) : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-              <div className="flex justify-end gap-3">
-                <Button variant="secondary" onClick={() => setStep(1)}>ย้อนกลับ</Button>
-                <Button onClick={() => setStep(3)}>ต่อไป</Button>
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <Button className="w-full sm:w-auto" variant="secondary" onClick={() => setStep(1)}>ย้อนกลับ</Button>
+                <Button className="w-full sm:w-auto" onClick={() => setStep(3)}>ต่อไป</Button>
               </div>
             </div>
           ) : null}
@@ -260,6 +267,9 @@ function AdminImportPage() {
           {step === 3 ? (
             <div className="space-y-4">
               <h3 className="text-lg font-bold text-slate-900">Preview</h3>
+              <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                เพิ่มนักเรียนจากไฟล์นี้ได้หลายครั้งในปีการศึกษาเดียวกัน รายชื่อเดิมที่ไม่ได้อยู่ในไฟล์จะยังคงอยู่
+              </p>
               <div className="rounded-2xl border border-slate-200 p-4">
                 <p className="text-sm text-slate-600">ไฟล์: {fileName}</p>
                 <p className="mt-2 text-sm text-slate-600">เพิ่มข้อมูลใหม่: {counts.new} รายการ</p>
@@ -267,9 +277,9 @@ function AdminImportPage() {
                 <p className="mt-2 text-sm text-slate-600">เก็บข้อมูลเดิม/แถวผิดพลาด: {counts.same + rows.filter((row) => row.status === 'changed' && row.action === 'keep').length} รายการซ้ำ, {counts.invalid} แถวผิดพลาด</p>
               </div>
               {error ? <ErrorMessage message={error} /> : null}
-              <div className="flex justify-end gap-3">
-                <Button variant="secondary" onClick={() => setStep(2)}>ย้อนกลับ</Button>
-                <Button disabled={counts.invalid > 0} onClick={() => void confirmImport()}>ยืนยันนำเข้า</Button>
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <Button className="w-full sm:w-auto" variant="secondary" onClick={() => setStep(2)}>ย้อนกลับ</Button>
+                <Button className="w-full sm:w-auto" disabled={counts.invalid > 0} onClick={() => void confirmImport()}>ยืนยันนำเข้า</Button>
               </div>
             </div>
           ) : null}
@@ -280,8 +290,8 @@ function AdminImportPage() {
               <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
                 เพิ่มนักเรียนใหม่ {importedCount} คน · roster ปีการศึกษานี้ทั้งหมด {studentCount} คน
               </div>
-              <div className="flex justify-end gap-3">
-                <Button onClick={resetImport}>นำเข้าไฟล์อื่น</Button>
+              <div className="flex justify-end">
+                <Button className="w-full sm:w-auto" onClick={resetImport}>นำเข้าไฟล์อื่น</Button>
               </div>
             </div>
           ) : null}

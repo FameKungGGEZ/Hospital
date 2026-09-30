@@ -11,6 +11,7 @@ import AdminImportPage from './pages/admin/AdminImportPage'
 import AdminExportPage from './pages/admin/AdminExportPage'
 import AdminReportPage from './pages/admin/AdminReportPage'
 import AdminSettingsPage from './pages/admin/AdminSettingsPage'
+import PublicReportsPage from './pages/PublicReportsPage'
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
         <Route path="/nurse/verify" element={<StudentVerificationPage />} />
         <Route path="/nurse/service" element={<ServiceFormPage />} />
         <Route path="/nurse/success" element={<SuccessPage />} />
+        <Route path="/nurse/reports" element={<PublicReportsPage />} />
         <Route path="/nurse/admin/login" element={<AdminLoginPage />} />
         <Route path="/nurse/admin/dashboard" element={<AdminDashboardPage />} />
         <Route path="/nurse/admin/students" element={<AdminStudentsPage />} />

@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2 } from 'lucide-react'
+import { AlertCircle, CheckCircle2, ClipboardList, Stethoscope } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { StudentLayout } from '../../components/layout/StudentLayout'
@@ -63,7 +63,10 @@ function ServiceFormPage() {
       return
     }
 
-    const serviceItems = [...selectedSymptoms, ...selectedNotes]
+    const serviceItems = [
+      ...selectedSymptoms,
+      ...selectedNotes.filter((item) => item !== 'other'),
+    ]
     if (showOtherInput && otherDetail.trim()) {
       serviceItems.push(`other:${otherDetail.trim()}`)
     }
@@ -80,117 +83,146 @@ function ServiceFormPage() {
 
   return (
     <StudentLayout>
-      <div className="space-y-6 px-6 py-8 md:px-10">
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-          <p className="text-sm text-slate-600">นักเรียน: {student.name} {student.surname}</p>
-          <p className="mt-1 text-lg font-bold text-slate-900">{student.student_id} · {student.class_name}</p>
+      <div className="space-y-6 px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
+        <div className="rounded-[28px] border border-sky-200 bg-gradient-to-r from-sky-50 to-emerald-50 p-5 sm:p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-sky-700">Workflow • Step 3</p>
+              <h2 className="mt-2 text-2xl font-black text-slate-900">บันทึกการให้บริการ</h2>
+            </div>
+            <div className="rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 text-sm font-semibold text-slate-700">
+              {student.name} {student.surname}
+            </div>
+          </div>
         </div>
 
-        <div className="space-y-8">
-          <section>
-            <h3 className="mb-4 text-xl font-bold text-slate-900">อาการเจ็บป่วย / การปฐมพยาบาล</h3>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {symptomOptions.map((symptom) => {
-                const checked = selectedSymptoms.includes(symptom.id)
-                return (
-                  <button
-                    key={symptom.id}
-                    type="button"
-                    onClick={() => toggleSymptom(symptom.id)}
-                    className={`flex items-center gap-3 rounded-2xl border p-4 text-left transition ${
-                      checked
-                        ? 'border-blue-500 bg-blue-50 text-blue-900 shadow-sm'
-                        : symptom.id === 'wound_care'
-                          ? 'border-sky-200 bg-sky-50 text-sky-900 hover:border-sky-300'
-                          : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-                    }`}
-                    aria-pressed={checked}
-                  >
-                    <span
-                      className={`flex h-5 w-5 items-center justify-center rounded-md border text-xs font-bold ${
+        <div className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
+          <div className="space-y-6 rounded-[28px] border border-slate-200 bg-white p-5 sm:p-6">
+            <section>
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-100 text-sky-700">
+                  <Stethoscope size={20} />
+                </div>
+                <h3 className="text-xl font-bold text-slate-900">อาการเจ็บป่วย / การปฐมพยาบาล</h3>
+              </div>
+              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                {symptomOptions.map((symptom) => {
+                  const checked = selectedSymptoms.includes(symptom.id)
+                  return (
+                    <button
+                      key={symptom.id}
+                      type="button"
+                      onClick={() => toggleSymptom(symptom.id)}
+                      className={`flex min-h-12 items-center gap-2 rounded-2xl border p-3 text-left text-sm transition ${
                         checked
-                          ? 'border-blue-600 bg-blue-600 text-white'
-                          : 'border-slate-300 bg-white text-slate-400'
+                          ? 'border-sky-500 bg-sky-50 text-sky-900 shadow-sm'
+                          : symptom.id === 'wound_care'
+                            ? 'border-sky-200 bg-sky-50/60 text-sky-900 hover:border-sky-300'
+                            : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
                       }`}
+                      aria-pressed={checked}
                     >
-                      {checked ? '✓' : ''}
-                    </span>
-                    <span className="font-medium">{symptom.label}</span>
-                  </button>
-                )
-              })}
-            </div>
-          </section>
+                      <span
+                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] font-bold ${
+                          checked
+                            ? 'border-sky-600 bg-sky-600 text-white'
+                            : 'border-slate-300 bg-white text-slate-400'
+                        }`}
+                      >
+                        {checked ? '✓' : ''}
+                      </span>
+                      <span className="font-medium">{symptom.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </section>
 
-          <section>
-            <h3 className="mb-4 text-xl font-bold text-slate-900">หมายเหตุ</h3>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-              {noteOptions.map((note) => {
-                const checked = selectedNotes.includes(note.id)
-                const noteStyle =
-                  note.tone === 'rest'
-                    ? 'border-blue-200 bg-blue-50 text-blue-800'
-                    : note.tone === 'accident'
-                      ? 'border-pink-200 bg-pink-50 text-pink-800'
-                      : 'border-slate-200 bg-slate-50 text-slate-700'
+            <section>
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+                  <ClipboardList size={20} />
+                </div>
+                <h3 className="text-xl font-bold text-slate-900">หมายเหตุ</h3>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {noteOptions.map((note) => {
+                  const checked = selectedNotes.includes(note.id)
+                  const noteStyle =
+                    note.tone === 'rest'
+                      ? 'border-blue-200 bg-blue-50 text-blue-800'
+                      : note.tone === 'accident'
+                        ? 'border-pink-200 bg-pink-50 text-pink-800'
+                        : 'border-slate-200 bg-slate-50 text-slate-700'
 
-                return (
-                  <button
-                    key={note.id}
-                    type="button"
-                    onClick={() => toggleNote(note.id)}
-                    className={`flex items-center justify-between rounded-2xl border p-4 text-left transition ${
-                      checked ? `${noteStyle} ring-2 ring-offset-1 ring-slate-200` : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-                    }`}
-                    aria-pressed={checked}
-                  >
-                    <span className="font-medium">{note.label}</span>
-                    <span
-                      className={`flex h-5 w-5 items-center justify-center rounded-md border text-xs font-bold ${
-                        checked
-                          ? 'border-current bg-transparent text-current'
-                          : 'border-slate-300 bg-white text-slate-400'
+                  return (
+                    <button
+                      key={note.id}
+                      type="button"
+                      onClick={() => toggleNote(note.id)}
+                      className={`flex items-center justify-between rounded-2xl border p-4 text-left transition ${
+                        checked ? `${noteStyle} ring-2 ring-offset-1 ring-slate-200` : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
                       }`}
+                      aria-pressed={checked}
                     >
-                      {checked ? '✓' : ''}
-                    </span>
-                  </button>
-                )
-              })}
+                      <span className="font-medium">{note.label}</span>
+                      <span
+                        className={`flex h-5 w-5 items-center justify-center rounded-md border text-xs font-bold ${
+                          checked
+                            ? 'border-current bg-transparent text-current'
+                            : 'border-slate-300 bg-white text-slate-400'
+                        }`}
+                      >
+                        {checked ? '✓' : ''}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {showOtherInput ? (
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-slate-700">
+                    <span className="mb-2 block">รายละเอียดอื่นๆ</span>
+                    <input
+                      value={otherDetail}
+                      maxLength={500}
+                      onChange={(event) => setOtherDetail(event.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-base outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+                      placeholder="รายละเอียดอื่นๆ"
+                    />
+                  </label>
+                </div>
+              ) : null}
+            </section>
+          </div>
+
+          <aside className="rounded-[28px] border border-slate-200 bg-slate-50 p-5 sm:p-6">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Student Summary</p>
+            <div className="mt-4 rounded-2xl border border-sky-200 bg-white p-4">
+              <p className="text-sm text-slate-600">นักเรียน</p>
+              <p className="mt-1 text-lg font-bold text-slate-900">{student.name} {student.surname}</p>
+              <p className="mt-2 text-sm text-sky-700">{student.student_id} · {student.class_name}</p>
             </div>
 
-            {showOtherInput ? (
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-slate-700">
-                  <span className="mb-2 block">รายละเอียดอื่นๆ</span>
-                  <input
-                    value={otherDetail}
-                    onChange={(event) => setOtherDetail(event.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                    placeholder="รายละเอียดอื่นๆ"
-                  />
-                </label>
+            <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-sm leading-6 text-slate-700 whitespace-pre-line">{summaryText}</p>
+            </div>
+
+            {serverError ? (
+              <div className="mt-5 flex items-start gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                <span>{serverError}</span>
               </div>
             ) : null}
-          </section>
-        </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <p className="text-sm leading-6 text-slate-700 whitespace-pre-line">{summaryText}</p>
-        </div>
-
-        {serverError ? (
-          <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            <AlertCircle size={16} />
-            <span>{serverError}</span>
-          </div>
-        ) : null}
-
-        <div className="flex justify-end">
-          <Button className="min-w-52" onClick={() => void handleSubmit()} disabled={!allowsSubmit || isSubmitting}>
-            <CheckCircle2 size={16} className="mr-2" />
-            {isSubmitting ? 'กำลังบันทึก...' : '✓ ยืนยันการรับบริการ'}
-          </Button>
+            <div className="mt-6 flex flex-col gap-3">
+              <Button className="w-full rounded-2xl" onClick={() => void handleSubmit()} disabled={!allowsSubmit || isSubmitting}>
+                <CheckCircle2 size={16} className="mr-2" />
+                {isSubmitting ? 'กำลังบันทึก...' : 'ยืนยันการรับบริการ'}
+              </Button>
+            </div>
+          </aside>
         </div>
       </div>
     </StudentLayout>

@@ -1,4 +1,4 @@
-import { Search, Upload } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Search, Upload } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AdminLayout } from '../../components/layout/AdminLayout'
@@ -11,6 +11,12 @@ function AdminStudentsPage() {
   const [studentDirectory, setStudentDirectory] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
+  const [selectedLevel, setSelectedLevel] = useState('')
+  const [selectedRoom, setSelectedRoom] = useState('')
+  const [selectedSex, setSelectedSex] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   useEffect(() => {
     let active = true
@@ -20,6 +26,36 @@ function AdminStudentsPage() {
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [])
+
+  const classLevels = [...new Set(studentDirectory.map((student) => {
+    const classMatch = student.class_name.match(/ม\.\s*\d+/)
+    return classMatch ? classMatch[0].replace(/\s+/g, ' ') : ''
+  }).filter(Boolean))].sort((first, second) => first.localeCompare(second, 'th'))
+  const classRooms = [...new Set(studentDirectory
+    .filter((student) => !selectedLevel || student.class_name.includes(selectedLevel))
+    .map((student) => {
+      const roomMatch = student.class_name.match(/\/\s*(\d+)/)
+      return roomMatch ? roomMatch[1] : ''
+    }).filter(Boolean))].sort((first, second) => Number(first) - Number(second))
+  const normalizedSearch = search.trim().toLocaleLowerCase()
+  const filteredStudents = studentDirectory.filter((student) => {
+    const studentLevel = student.class_name.match(/ม\.\s*\d+/)?.[0].replace(/\s+/g, ' ') ?? ''
+    const studentRoom = student.class_name.match(/\/\s*(\d+)/)?.[1] ?? ''
+    const matchesSearch = !normalizedSearch || [
+      student.student_id,
+      student.name,
+      student.surname,
+      `${student.name} ${student.surname}`,
+    ].some((value) => value.toLocaleLowerCase().includes(normalizedSearch))
+    const matchesLevel = !selectedLevel || studentLevel === selectedLevel
+    const matchesRoom = !selectedRoom || studentRoom === selectedRoom
+    return matchesSearch
+      && matchesLevel
+      && matchesRoom
+      && (!selectedSex || student.sex === selectedSex)
+  })
+  const pageCount = Math.max(1, Math.ceil(filteredStudents.length / pageSize))
+  const pagedStudents = filteredStudents.slice((page - 1) * pageSize, page * pageSize)
 
   return (
     <AdminLayout>
@@ -41,18 +77,46 @@ function AdminStudentsPage() {
               <input
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 placeholder="Search"
+                aria-label="ค้นหาจากรหัสหรือชื่อนักเรียน"
+                value={search}
+                onChange={(event) => { setSearch(event.target.value); setPage(1) }}
               />
             </div>
-            <select className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
-              <option>ทุกชั้น</option>
-              <option>ม.4</option>
-              <option>ม.5</option>
-              <option>ม.6</option>
+            <select
+              aria-label="กรองตามระดับชั้น"
+              value={selectedLevel}
+              onChange={(event) => { setSelectedLevel(event.target.value); setSelectedRoom(''); setPage(1) }}
+              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            >
+              <option value="">ทุกระดับชั้น</option>
+              {classLevels.map((level) => <option key={level} value={level}>{level}</option>)}
             </select>
-            <select className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
-              <option>ทุกเพศ</option>
-              <option>ชาย</option>
-              <option>หญิง</option>
+            <select
+              aria-label="กรองตามห้อง"
+              value={selectedRoom}
+              onChange={(event) => { setSelectedRoom(event.target.value); setPage(1) }}
+              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            >
+              <option value="">ทุกห้อง</option>
+              {classRooms.map((room) => <option key={room} value={room}>{room}</option>)}
+            </select>
+            <select
+              aria-label="กรองตามเพศ"
+              value={selectedSex}
+              onChange={(event) => { setSelectedSex(event.target.value); setPage(1) }}
+              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            >
+              <option value="">ทุกเพศ</option>
+              <option value="ชาย">ชาย</option>
+              <option value="หญิง">หญิง</option>
+            </select>
+            <select
+              aria-label="จำนวนนักเรียนต่อหน้า"
+              value={pageSize}
+              onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}
+              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            >
+              {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} รายการ</option>)}
             </select>
           </div>
         </div>
@@ -77,11 +141,13 @@ function AdminStudentsPage() {
                   <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-500">กำลังโหลดรายชื่อนักเรียน...</td></tr>
                 ) : error ? (
                   <tr><td colSpan={8} role="alert" className="px-4 py-10 text-center text-rose-700">{error}</td></tr>
-                ) : studentDirectory.length === 0 ? (
+                ) : filteredStudents.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-10 text-center text-slate-500">ยังไม่มีรายชื่อนักเรียน</td>
+                    <td colSpan={8} className="px-4 py-10 text-center text-slate-500">
+                      {studentDirectory.length === 0 ? 'ยังไม่มีรายชื่อนักเรียน' : 'ไม่พบข้อมูลตามตัวกรอง'}
+                    </td>
                   </tr>
-                ) : studentDirectory.map((student) => (
+                ) : pagedStudents.map((student) => (
                   <tr key={student.student_id} className="border-t border-slate-200">
                     <td className="px-4 py-3">{student.number}</td>
                     <td className="px-4 py-3 font-medium text-slate-800">{student.student_id}</td>
@@ -99,6 +165,32 @@ function AdminStudentsPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+          <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-slate-600">
+              แสดง {filteredStudents.length === 0 ? 0 : (page - 1) * pageSize + 1}-{Math.min(page * pageSize, filteredStudents.length)} จาก {filteredStudents.length} คน
+            </p>
+            <div className="flex items-center justify-between gap-3 sm:justify-end">
+              <Button
+                variant="secondary"
+                aria-label="หน้าก่อนหน้า"
+                title="หน้าก่อนหน้า"
+                disabled={page <= 1}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+              >
+                <ChevronLeft size={18} />
+              </Button>
+              <span className="min-w-24 text-center text-sm text-slate-600">หน้า {page} / {pageCount}</span>
+              <Button
+                variant="secondary"
+                aria-label="หน้าถัดไป"
+                title="หน้าถัดไป"
+                disabled={page >= pageCount}
+                onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+              >
+                <ChevronRight size={18} />
+              </Button>
+            </div>
           </div>
         </div>
       </div>

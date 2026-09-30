@@ -17,8 +17,17 @@ Apply migrations in order from the Supabase SQL Editor or the Supabase CLI:
 
 1. `supabase/migrations/202609280001_initial_schema.sql`
 2. `supabase/migrations/202609280002_student_roster_rollover.sql`
+3. `supabase/migrations/202609280003_public_api_rate_limits.sql`
+4. `supabase/migrations/202609290001_public_reports_and_roster_archive.sql`
+5. `supabase/migrations/202609290002_add_return_to_class_note.sql`
+6. `supabase/migrations/202609290003_service_record_permissions.sql`
+7. `supabase/migrations/202609300001_incremental_student_roster_import.sql`
 
 The second migration archives the previously active academic records and upserts the new roster in one transaction. Old academic records and service records remain available for reports and history.
+The fourth migration creates the public-report setting (disabled by default), private annual archive storage, and the admin-only roster archive function.
+The fifth migration adds “กลับห้องเรียน” to the service note catalog.
+The sixth migration makes service history read-only for authenticated users; writes remain available through the server-side submission function.
+The seventh migration allows the active roster to be imported in batches during the same academic year, while the first batch of a new year still rolls over records from the previous year.
 
 ## 3. First Admin Account
 
@@ -43,15 +52,25 @@ npx supabase link --project-ref <project-ref>
 npx supabase functions deploy username-login
 npx supabase functions deploy student-lookup
 npx supabase functions deploy service-submit
+npx supabase functions deploy public-recent-reports
 ```
 
 Supabase provides the function runtime's `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`. The service-role key must only be used in Edge Function runtime secrets.
 
-## 5. Vercel
+## 5. Annual Roster Rollover
+
+1. Sign in as an admin and open Settings.
+2. Select “สำรองและ archive รายชื่อปัจจุบัน”. The app creates service-history XLSX/PDF and illness-statistics XLSX/PDF files, uploads them to the private `annual-report-archives` bucket, and only then archives the active roster.
+3. Confirm the success message, then import the approved new-year roster from the Import page.
+4. Archived files can be downloaded from Settings, History, or Report. Historical service records are retained and remain available to staff.
+
+Enable public reports from Settings only when the school has approved exposing the listed health/service details. The setting is off by default, and the public Edge Function enforces it independently of the page button.
+
+## 6. Vercel
 
 Import the repository into Vercel and set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in the project's Environment Variables for Preview and Production. Deploy a Preview first; only promote it after roster import, staff login, student lookup, service submission, history, statistics, and export have been checked.
 
-## 6. Data and Privacy
+## 7. Data and Privacy
 
 - Upload the approved academic-year roster only after the staging project and admin account are ready.
 - The roster rollover operation does not delete prior-year academic records or service history.

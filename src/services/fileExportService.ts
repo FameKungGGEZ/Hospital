@@ -1,5 +1,6 @@
 import writeXlsxFile from 'write-excel-file/browser'
 import { noteOptions, symptomOptions } from '../data/mockData'
+import { getLocalDateKey } from '../lib/dateUtils'
 import { getServiceHistory } from './studentRepository'
 
 const itemLabels = new Map([...symptomOptions, ...noteOptions].map((item) => [item.id, item.label]))
@@ -31,7 +32,7 @@ function hasSelectedItem(record: ExportRecord, itemCode: string): boolean {
 async function getExportRecords(dateFrom: string, dateTo: string): Promise<ExportRecord[]> {
   return (await getServiceHistory())
     .filter((record) => {
-      const date = record.service_datetime.slice(0, 10)
+      const date = getLocalDateKey(new Date(record.service_datetime))
       return (!dateFrom || date >= dateFrom) && (!dateTo || date <= dateTo)
     })
     .sort((first, second) => first.service_datetime.localeCompare(second.service_datetime))
@@ -41,12 +42,17 @@ async function getExportRecords(dateFrom: string, dateTo: string): Promise<Expor
         .filter((item) => symptomOptions.some((option) => option.id === item))
         .map((item) => itemLabels.get(item) ?? item)
       const notes = record.selected_items
-        .filter((item) => noteOptions.some((option) => option.id === item))
-        .map((item) => itemLabels.get(item) ?? item)
+        .filter((item) => noteOptions.some((option) => option.id === getSelectedItemCode(item)))
+        .map((item) => {
+          const itemCode = getSelectedItemCode(item)
+          const separatorIndex = item.indexOf(':')
+          const detail = separatorIndex < 0 ? '' : item.slice(separatorIndex + 1).trim()
+          return itemCode === 'other' && detail ? detail : itemLabels.get(itemCode) ?? itemCode
+        })
 
       return {
         sequence: index + 1,
-        date: record.service_datetime.slice(0, 10),
+        date: getLocalDateKey(new Date(record.service_datetime)),
         time: new Date(record.service_datetime).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
         studentId: record.student_id,
         name: student?.name ?? '',
@@ -59,6 +65,31 @@ async function getExportRecords(dateFrom: string, dateTo: string): Promise<Expor
         selectedItems: record.selected_items,
       }
     })
+}
+
+export async function getHistoryRecordCount(dateFrom: string, dateTo: string): Promise<number> {
+  return (await getExportRecords(dateFrom, dateTo)).length
+}
+
+export type ExportAvailability = {
+  firstServiceDate: string | null
+  lastServiceDate: string | null
+  academicYears: string[]
+}
+
+export async function getExportAvailability(): Promise<ExportAvailability> {
+  const records = await getServiceHistory()
+  const serviceDates = records
+    .map((record) => getLocalDateKey(new Date(record.service_datetime)))
+    .sort()
+  const academicYears = [...new Set(records.flatMap((record) => record.student?.academic_year ?? []))]
+    .sort((first, second) => second.localeCompare(first))
+
+  return {
+    firstServiceDate: serviceDates[0] ?? null,
+    lastServiceDate: serviceDates.at(-1) ?? null,
+    academicYears,
+  }
 }
 
 export async function downloadStudentTemplate(academicYear: string): Promise<void> {
@@ -99,8 +130,8 @@ const reportSymptoms = symptomOptions.map((option, index) => ({ ...option, repor
 const monthLabels = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
 const termOneMonths = [5, 6, 7, 8, 9, 10]
 const termTwoMonths = [11, 12, 1, 2, 3]
-const termOneNoteIds = ['rest', 'accident', 'go_home', 'send_hospital']
-const termTwoNoteIds = ['rest', 'accident', 'go_home', 'other', 'send_hospital']
+const termOneNoteIds = ['rest', 'accident', 'go_home', 'send_hospital', 'return_class']
+const termTwoNoteIds = ['rest', 'accident', 'go_home', 'other', 'send_hospital', 'return_class']
 
 function reportCell(value: string | number, style: CellStyle = {}) {
   return {
@@ -140,7 +171,9 @@ function buildHistorySheet(records: ExportRecord[], period: string) {
   const titleStyle: CellStyle = { align: 'center', fontSize: 16, fontWeight: 'bold', height: 28 }
   const headerStyle: CellStyle = { backgroundColor: '#D9E2F3', align: 'center', fontWeight: 'bold', wrap: true }
   const summaryStyle: CellStyle = { backgroundColor: '#93C47D', align: 'center', fontWeight: 'bold' }
-  const headers = new Array(27).fill(null) as Array<ReturnType<typeof reportCell> | null>
+  const noteStart = 9 + historySymptoms.length
+  const columnCount = noteStart + historyNotes.length
+  const headers = new Array(columnCount).fill(null) as Array<ReturnType<typeof reportCell> | null>
 
   headers[0] = reportCell('ลำดับ', { ...headerStyle, rowSpan: 2 })
   headers[1] = reportCell('วันที่', { ...headerStyle, rowSpan: 2 })
@@ -151,16 +184,16 @@ function buildHistorySheet(records: ExportRecord[], period: string) {
   headers[6] = reportCell('เพศ', { ...headerStyle, columnSpan: 2 })
   headers[8] = reportCell('ชั้น', { ...headerStyle, rowSpan: 2 })
   headers[9] = reportCell('อาการ', { ...headerStyle, columnSpan: historySymptoms.length })
-  headers[22] = reportCell('หมายเหตุ', { ...headerStyle, columnSpan: historyNotes.length })
+  headers[noteStart] = reportCell('หมายเหตุ', { ...headerStyle, columnSpan: historyNotes.length })
 
-  const subHeaders = new Array(27).fill(null) as Array<ReturnType<typeof reportCell> | null>
+  const subHeaders = new Array(columnCount).fill(null) as Array<ReturnType<typeof reportCell> | null>
   subHeaders[6] = reportCell('ชาย', headerStyle)
   subHeaders[7] = reportCell('หญิง', headerStyle)
   historySymptoms.forEach((item, index) => { subHeaders[9 + index] = reportCell(item.label, headerStyle) })
-  historyNotes.forEach((item, index) => { subHeaders[22 + index] = reportCell(item.label, headerStyle) })
+  historyNotes.forEach((item, index) => { subHeaders[noteStart + index] = reportCell(item.label, headerStyle) })
 
   const dataRows = records.map((record, index) => {
-    const row = new Array(27).fill('') as string[]
+    const row = new Array(columnCount).fill('') as string[]
     row[0] = String(index + 1)
     row[1] = record.date
     row[2] = record.time
@@ -174,7 +207,7 @@ function buildHistorySheet(records: ExportRecord[], period: string) {
       row[9 + itemIndex] = hasSelectedItem(record, item.id) ? '✔' : ''
     })
     historyNotes.forEach((item, itemIndex) => {
-      row[22 + itemIndex] = hasSelectedItem(record, item.id) ? '✔' : ''
+      row[noteStart + itemIndex] = hasSelectedItem(record, item.id) ? '✔' : ''
     })
     return row.map((value, column) => reportCell(value, {
       align: column >= 9 ? 'center' : column === 4 || column === 5 ? 'left' : 'center',
@@ -182,7 +215,7 @@ function buildHistorySheet(records: ExportRecord[], period: string) {
   })
 
   const totals = getHistoryTotals(records)
-  const totalRow = new Array(27).fill(null) as Array<ReturnType<typeof reportCell> | null>
+  const totalRow = new Array(columnCount).fill(null) as Array<ReturnType<typeof reportCell> | null>
   totalRow[0] = reportCell('รวม', { ...summaryStyle, columnSpan: 6 })
   totalRow[6] = reportCell(totals.male, summaryStyle)
   totalRow[7] = reportCell(totals.female, summaryStyle)
@@ -192,8 +225,8 @@ function buildHistorySheet(records: ExportRecord[], period: string) {
   })
 
   return [
-    [reportCell('แบบบันทึกสถิติการใช้บริการเรือนพยาบาล โรงเรียนตะพานหิน', { ...titleStyle, columnSpan: 27 })],
-    [reportCell(period, { align: 'center', columnSpan: 27 })],
+    [reportCell('แบบบันทึกสถิติการใช้บริการเรือนพยาบาล โรงเรียนตะพานหิน', { ...titleStyle, columnSpan: columnCount })],
+    [reportCell(period, { align: 'center', columnSpan: columnCount })],
     headers,
     subHeaders,
     ...dataRows,
@@ -202,13 +235,18 @@ function buildHistorySheet(records: ExportRecord[], period: string) {
 }
 
 export async function downloadHistoryExampleWorkbook(dateFrom: string, dateTo: string): Promise<void> {
+  const blob = await createHistoryExampleWorkbook(dateFrom, dateTo)
+  downloadBlob(blob, 'ประวัติบริการ.xlsx')
+}
+
+export async function createHistoryExampleWorkbook(dateFrom: string, dateTo: string): Promise<Blob> {
   const records = await getExportRecords(dateFrom, dateTo)
-  const widths = [6, 12, 8, 13, 16, 16, 6, 6, 9, ...Array(18).fill(5)]
-  await writeXlsxFile(buildHistorySheet(records, getHistoryPeriod(records, dateFrom, dateTo)), {
+  const widths = [6, 12, 8, 13, 16, 16, 6, 6, 9, ...Array(historySymptoms.length + historyNotes.length).fill(5)]
+  return writeXlsxFile(buildHistorySheet(records, getHistoryPeriod(records, dateFrom, dateTo)), {
     sheet: 'ประวัติบริการ',
     orientation: 'landscape',
     columns: widths.map((width) => ({ width })),
-  }).toFile('ประวัติบริการ.xlsx')
+  }).toBlob()
 }
 
 function historyHtmlTable(records: ExportRecord[]): string {
@@ -261,6 +299,32 @@ export async function printHistoryExamplePdf(dateFrom: string, dateTo: string): 
     td:nth-child(5),td:nth-child(6) { text-align:left; }
     .total-row td { background:#93c47d; font-weight:bold; }
     @media print { body { print-color-adjust:exact; -webkit-print-color-adjust:exact; } }
+  `)
+}
+
+export async function createHistoryExamplePdf(dateFrom: string, dateTo: string): Promise<Blob> {
+  const records = await getExportRecords(dateFrom, dateTo)
+  const chunks: ExportRecord[][] = []
+  for (let start = 0; start < records.length; start += 10) chunks.push(records.slice(start, start + 10))
+  if (chunks.length === 0) chunks.push([])
+  const period = getHistoryPeriod(records, dateFrom, dateTo)
+  const pages = chunks.map((chunk, index) => `
+    <section class="pdf-page">
+      <h1>แบบบันทึกสถิติการใช้บริการเรือนพยาบาล โรงเรียนตะพานหิน</h1>
+      <p>${escapeHtml(period)} · หน้า ${index + 1}/${chunks.length}</p>
+      ${historyHtmlTable(chunk)}
+    </section>`)
+  return createPdfBlob(pages, `
+    body { color:#17202a; font-family:"Noto Sans Thai",Tahoma,sans-serif; font-size:10px; }
+    h1 { text-align:center; font-size:18px; margin:0 0 8px; }
+    p { text-align:center; margin:0 0 12px; }
+    .pdf-page { width:1500px; background:#fff; padding:20px; }
+    table { border-collapse:collapse; table-layout:fixed; width:100%; }
+    th,td { border:1px solid #64748b; padding:4px 2px; text-align:center; vertical-align:middle; }
+    th { background:#d9e2f3; font-weight:bold; }
+    th.vertical { height:120px; writing-mode:vertical-rl; transform:rotate(180deg); white-space:nowrap; }
+    td:nth-child(5),td:nth-child(6) { text-align:left; }
+    .total-row td { background:#93c47d; font-weight:bold; }
   `)
 }
 
@@ -422,14 +486,24 @@ function semesterSheetRows(report: SemesterReport, academicYear: string): Array<
 }
 
 export async function downloadIllnessStatisticsWorkbook(academicYear: string): Promise<void> {
+  const blob = await createIllnessStatisticsWorkbook(academicYear)
+  downloadBlob(blob, 'สถิติการเจ็บป่วย.xlsx')
+}
+
+export async function createIllnessStatisticsWorkbook(academicYear: string): Promise<Blob> {
   const reports = await getIllnessStatistics(academicYear)
   const sheetRows = reports.flatMap((report) => [...semesterSheetRows(report, academicYear), new Array(24).fill(null)])
-  const widths = [5, 8, 6, 6, 8, ...Array(13).fill(8), 8, ...Array(5).fill(8)]
-  await writeXlsxFile(sheetRows, {
+  const widths = [
+    5, 8, 6, 6, 8,
+    ...Array(reportSymptoms.length).fill(8),
+    8,
+    ...Array(termTwoNoteIds.length).fill(8),
+  ]
+  return writeXlsxFile(sheetRows, {
     sheet: 'สถิติการเจ็บป่วย',
     orientation: 'landscape',
     columns: widths.map((width) => ({ width })),
-  }).toFile('สถิติการเจ็บป่วย.xlsx')
+  }).toBlob()
 }
 
 function illnessTableHtml(report: SemesterReport): string {
@@ -494,6 +568,26 @@ export async function printIllnessStatisticsPdf(academicYear: string): Promise<v
   `)
 }
 
+export async function createIllnessStatisticsPdf(academicYear: string): Promise<Blob> {
+  const reports = await getIllnessStatistics(academicYear)
+  const pages = reports.map((report) => `
+    <section class="pdf-page">
+      <h1>สรุปสถิติการเจ็บป่วยนักเรียนโรงเรียนตะพานหิน ภาคเรียนที่ ${report.semester} ปีการศึกษา ${escapeHtml(academicYear)}</h1>
+      ${illnessTableHtml(report)}
+    </section>`)
+  return createPdfBlob(pages, `
+    body { color:#17202a; font-family:"Noto Sans Thai",Tahoma,sans-serif; font-size:11px; }
+    h1 { text-align:center; font-size:18px; margin:0 0 16px; }
+    .pdf-page { width:1500px; background:#fff; padding:24px; }
+    table { border-collapse:collapse; table-layout:fixed; width:100%; }
+    th,td { border:1px solid #334155; padding:7px 3px; text-align:center; vertical-align:middle; }
+    thead th { background:#d9e2f3; }
+    .symptom-total { background:#b7dde8; font-weight:bold; }
+    .total-row td { background:#93d050; font-weight:bold; }
+    .percent-row td { background:#ffff00; font-weight:bold; }
+  `)
+}
+
 function openPrintWindow(): Window | null {
   const printWindow = window.open('', '_blank')
   return printWindow
@@ -505,6 +599,54 @@ function writePrintDocument(printWindow: Window, title: string, pages: string[],
     <title>${escapeHtml(title)}</title><style>${styles}</style></head><body>${pages.join('')}
     <script>window.onload = () => window.print()</script></body></html>`)
   printWindow.document.close()
+}
+
+async function createPdfBlob(pages: string[], styles: string): Promise<Blob> {
+  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+    import('html2canvas'),
+    import('jspdf'),
+  ])
+  const host = document.createElement('div')
+  host.style.position = 'fixed'
+  host.style.left = '-20000px'
+  host.style.top = '0'
+  host.style.zIndex = '-1'
+  document.body.append(host)
+
+  const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' })
+  try {
+    for (const [index, page] of pages.entries()) {
+      host.innerHTML = `<style>${styles}</style>${page}`
+      await document.fonts.ready
+      const canvas = await html2canvas(host, { scale: 1.5, backgroundColor: '#ffffff' })
+      const margin = 8
+      const pageWidth = 420
+      const pageHeight = 297
+      const imageWidth = pageWidth - margin * 2
+      const imageHeight = canvas.height * imageWidth / canvas.width
+      const usableHeight = pageHeight - margin * 2
+      const image = canvas.toDataURL('image/jpeg', 0.92)
+      let offset = 0
+
+      while (offset < imageHeight) {
+        if (index > 0 || offset > 0) pdf.addPage('a3', 'landscape')
+        pdf.addImage(image, 'JPEG', margin, margin - offset, imageWidth, imageHeight)
+        offset += usableHeight
+      }
+    }
+    return pdf.output('blob')
+  } finally {
+    host.remove()
+  }
+}
+
+function downloadBlob(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  link.click()
+  URL.revokeObjectURL(url)
 }
 
 function escapeHtml(value: string | number): string {

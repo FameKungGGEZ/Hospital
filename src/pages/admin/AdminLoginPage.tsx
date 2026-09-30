@@ -1,12 +1,13 @@
 import { Eye, EyeOff, LockKeyhole, UserRound } from 'lucide-react'
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { signInWithUsername } from '../../services/authService'
 
 function AdminLoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -24,7 +25,8 @@ function AdminLoginPage() {
 
     try {
       await signInWithUsername(username, password)
-      navigate('/nurse/admin/dashboard')
+      const requestedPath = (location.state as { from?: string } | null)?.from
+      navigate(requestedPath?.startsWith('/nurse/admin/') ? requestedPath : '/nurse/admin/dashboard', { replace: true })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่')
     } finally {

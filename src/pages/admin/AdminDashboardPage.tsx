@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { AdminLayout } from '../../components/layout/AdminLayout'
 import { noteOptions, symptomOptions } from '../../data/mockData'
+import { getLocalDateKey } from '../../lib/dateUtils'
 import { getCurrentStudentRoster, getServiceHistory, type ServiceHistoryRecord } from '../../services/studentRepository'
 import type { Student } from '../../types'
 
@@ -27,9 +28,11 @@ function AdminDashboardPage() {
     return () => { active = false }
   }, [])
 
-  const today = new Date().toISOString().slice(0, 10)
-  const totalToday = serviceRecords.filter((record) => record.service_datetime.slice(0, 10) === today).length
-  const totalMonth = serviceRecords.filter((record) => record.service_datetime.slice(0, 7) === today.slice(0, 7)).length
+  const today = getLocalDateKey(new Date())
+  const totalToday = serviceRecords.filter((record) => getLocalDateKey(new Date(record.service_datetime)) === today).length
+  const totalMonth = serviceRecords.filter((record) =>
+    getLocalDateKey(new Date(record.service_datetime)).slice(0, 7) === today.slice(0, 7),
+  ).length
   const male = studentDirectory.filter((student) => student.sex === 'ชาย').length
   const female = studentDirectory.filter((student) => student.sex === 'หญิง').length
   const symptomCounts = new Map<string, number>()
@@ -47,16 +50,27 @@ function AdminDashboardPage() {
     .slice(0, 4)
   const maxSymptomCount = Math.max(1, ...frequentSymptoms.map((item) => item.value))
 
-  const recent = serviceRecords.slice(0, 6).map((record) => {
-    const student = record.student ?? studentDirectory.find((item) => item.student_id === record.student_id)
-    const labelList = record.selected_items.map((item) => allOptionLabels.get(item) ?? item)
+  const recent = [...serviceRecords]
+    .sort((first, second) => second.service_datetime.localeCompare(first.service_datetime))
+    .slice(0, 5)
+    .map((record) => {
+      const student = record.student ?? studentDirectory.find((item) => item.student_id === record.student_id)
+      const labelList = record.selected_items.map((item) => {
+        const separator = item.indexOf(':')
+        const itemCode = separator < 0 ? item : item.slice(0, separator)
+        const detail = separator < 0 ? '' : item.slice(separator + 1).trim()
+        return {
+          label: itemCode === 'other' && detail ? detail : allOptionLabels.get(itemCode) ?? itemCode,
+          isNote: noteOptions.some((option) => option.id === itemCode),
+        }
+      })
 
-    return {
-      ...record,
-      student,
-      labelList,
-    }
-  })
+      return {
+        ...record,
+        student,
+        labelList,
+      }
+    })
 
   return (
     <AdminLayout>
@@ -103,7 +117,10 @@ function AdminDashboardPage() {
               {loading ? <p className="text-sm text-slate-500">กำลังโหลดรายการ...</p> : recent.length === 0 ? <p className="text-sm text-slate-500">ยังไม่มีรายการใช้บริการ</p> : recent.map((record) => (
                 <div key={record.id} className="rounded-xl border border-blue-100 bg-white/90 p-3.5 shadow-sm">
                   <div className="flex items-center justify-between gap-2 text-xs text-slate-500">
-                    <span>{new Date(record.service_datetime).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span>
+                      {new Date(record.service_datetime).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {' '}{new Date(record.service_datetime).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
                     <span className="rounded-full bg-red-100 px-2 py-1 text-red-700">Live</span>
                   </div>
                   <div className="mt-2 flex items-center justify-between gap-3">
@@ -112,12 +129,9 @@ function AdminDashboardPage() {
                   </div>
                   <p className="text-sm text-slate-600">{record.student ? `${record.student.name} ${record.student.surname}` : 'ไม่ทราบชื่อ'}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {record.labelList.map((label) => {
-                      const isNote = ['นอนพัก', 'กลับบ้าน', 'อุบัติเหตุ', 'ส่ง รพ.', 'อื่นๆ'].includes(label)
-
-                      return (
+                    {record.labelList.map(({ label, isNote }, index) => (
                         <span
-                          key={`${record.id}-${label}`}
+                          key={`${record.id}-${index}-${label}`}
                           className={`rounded-full border px-2 py-1 text-[11px] font-medium ${
                             isNote
                               ? 'border-blue-200 bg-blue-100 text-blue-800'
@@ -126,8 +140,7 @@ function AdminDashboardPage() {
                         >
                           {label}
                         </span>
-                      )
-                    })}
+                    ))}
                   </div>
                 </div>
               ))}

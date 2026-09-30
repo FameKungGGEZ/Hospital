@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AdminLayout } from '../../components/layout/AdminLayout'
 import { noteOptions, symptomOptions } from '../../data/mockData'
+import { getLocalDateKey } from '../../lib/dateUtils'
 import { getServiceHistory } from '../../services/studentRepository'
 import type { ServiceHistoryRecord } from '../../services/studentRepository'
 
@@ -19,7 +20,7 @@ function getSelectedLabels(selectedItems: string[]) {
     const noteLabel = noteLabels.get(itemId)
 
     if (symptomLabel) symptoms.push(symptomLabel)
-    else if (noteLabel) notes.push(detail ? `${noteLabel}: ${detail}` : noteLabel)
+    else if (noteLabel) notes.push(itemId === 'other' && detail ? detail : detail ? `${noteLabel}: ${detail}` : noteLabel)
     else notes.push(selectedItem)
   }
 
@@ -30,6 +31,12 @@ function AdminHistoryPage() {
   const [serviceRecords, setServiceRecords] = useState<ServiceHistoryRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [studentId, setStudentId] = useState('')
+  const [selectedLevel, setSelectedLevel] = useState('')
+  const [selectedRoom, setSelectedRoom] = useState('')
+  const [sex, setSex] = useState('')
 
   useEffect(() => {
     let active = true
@@ -40,26 +47,72 @@ function AdminHistoryPage() {
     return () => { active = false }
   }, [])
 
+  const invalidDateRange = Boolean(dateFrom && dateTo && dateFrom > dateTo)
+  const normalizedStudentId = studentId.trim().toLocaleLowerCase()
+  const classLevels = [...new Set(serviceRecords.map((record) => {
+    const className = record.student?.class_name ?? ''
+    const classMatch = className.match(/ม\.\s*\d+/)
+    return classMatch ? classMatch[0].replace(/\s+/g, ' ') : ''
+  }).filter(Boolean))].sort((first, second) => first.localeCompare(second, 'th'))
+  const classRooms = [...new Set(serviceRecords
+    .filter((record) => !selectedLevel || (record.student?.class_name ?? '').includes(selectedLevel))
+    .map((record) => {
+      const className = record.student?.class_name ?? ''
+      const roomMatch = className.match(/\/\s*(\d+)/)
+      return roomMatch ? roomMatch[1] : ''
+    }).filter(Boolean))].sort((first, second) => Number(first) - Number(second))
+  const filteredRecords = serviceRecords.filter((record) => {
+    const className = record.student?.class_name ?? ''
+    const recordLevel = className.match(/ม\.\s*\d+/)?.[0].replace(/\s+/g, ' ') ?? ''
+    const recordRoom = className.match(/\/\s*(\d+)/)?.[1] ?? ''
+    const recordDate = getLocalDateKey(new Date(record.service_datetime))
+    const matchesLevel = !selectedLevel || recordLevel === selectedLevel
+    const matchesRoom = !selectedRoom || recordRoom === selectedRoom
+    return (!dateFrom || recordDate >= dateFrom)
+      && (!dateTo || recordDate <= dateTo)
+      && (!normalizedStudentId || record.student_id.toLocaleLowerCase().includes(normalizedStudentId))
+      && matchesLevel
+      && matchesRoom
+      && (!sex || record.student?.sex === sex)
+  })
+
   return (
     <AdminLayout>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">ประวัติการใช้บริการ</h1>
         </div>
-
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="grid gap-3 md:grid-cols-5">
-            <input className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm" type="date" />
-            <input className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm" type="date" />
-            <input className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm" placeholder="รหัสนักเรียน" />
-            <input className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm" placeholder="ชั้น" />
-            <select className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm">
-              <option>เพศ</option>
-              <option>ชาย</option>
-              <option>หญิง</option>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
+            <input aria-label="วันที่เริ่มต้น" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm" type="date" />
+            <input aria-label="วันที่สิ้นสุด" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm" type="date" />
+            <input aria-label="รหัสนักเรียน" value={studentId} onChange={(event) => setStudentId(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm" placeholder="รหัสนักเรียน" />
+            <select
+              aria-label="ระดับชั้น"
+              value={selectedLevel}
+              onChange={(event) => { setSelectedLevel(event.target.value); setSelectedRoom('') }}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
+            >
+              <option value="">ทุกระดับชั้น</option>
+              {classLevels.map((level) => <option key={level} value={level}>{level}</option>)}
+            </select>
+            <select
+              aria-label="ห้อง"
+              value={selectedRoom}
+              onChange={(event) => setSelectedRoom(event.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <option value="">ทุกห้อง</option>
+              {classRooms.map((room) => <option key={room} value={room}>{room}</option>)}
+            </select>
+            <select aria-label="เพศ" value={sex} onChange={(event) => setSex(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm">
+              <option value="">เพศ</option>
+              <option value="ชาย">ชาย</option>
+              <option value="หญิง">หญิง</option>
             </select>
           </div>
         </div>
+        {invalidDateRange ? <p role="alert" className="text-sm text-rose-700">วันที่เริ่มต้นต้องไม่อยู่หลังวันที่สิ้นสุด</p> : null}
 
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
@@ -80,11 +133,15 @@ function AdminHistoryPage() {
                   <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-500">กำลังโหลดประวัติ...</td></tr>
                 ) : error ? (
                   <tr><td colSpan={7} role="alert" className="px-4 py-10 text-center text-rose-700">{error}</td></tr>
-                ) : serviceRecords.length === 0 ? (
+                ) : invalidDateRange ? (
+                  <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-500">โปรดแก้ไขช่วงวันที่</td></tr>
+                ) : filteredRecords.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-slate-500">ยังไม่มีประวัติการใช้บริการ</td>
+                    <td colSpan={7} className="px-4 py-10 text-center text-slate-500">
+                      {serviceRecords.length === 0 ? 'ยังไม่มีประวัติการใช้บริการ' : 'ไม่พบรายการตามตัวกรอง'}
+                    </td>
                   </tr>
-                ) : serviceRecords.map((record) => {
+                ) : filteredRecords.map((record) => {
                   const selectedLabels = getSelectedLabels(record.selected_items)
                   return (
                     <tr key={record.id} className="border-t border-slate-200">

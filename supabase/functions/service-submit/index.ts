@@ -26,7 +26,7 @@ Deno.serve(async (request: Request) => {
     return jsonResponse({ error: 'Invalid request' }, 400)
   }
 
-  if (!/^\d{5}$/.test(studentId) || itemCodes.length < 1 || itemCodes.length > 18) {
+  if (!/^\d{5}$/.test(studentId) || itemCodes.length < 1 || itemCodes.length > 19) {
     return jsonResponse({ error: 'Invalid service record' }, 400)
   }
   if (!itemCodes.every((code) => typeof code === 'string' && /^[a-z][a-z0-9_]*$/.test(code))) {
@@ -36,6 +36,18 @@ Deno.serve(async (request: Request) => {
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   })
+  const { data: itemTypes, error: itemTypesError } = await supabase
+    .from('service_item_types')
+    .select('group_name')
+    .in('code', itemCodes)
+    .eq('active', true)
+
+  if (itemTypesError) return jsonResponse({ error: 'Unable to validate service items' }, 503)
+  const itemGroups = new Set((itemTypes ?? []).map((item) => item.group_name))
+  if (!itemGroups.has('symptom') || !itemGroups.has('note')) {
+    return jsonResponse({ error: 'At least one symptom and one note are required' }, 400)
+  }
+
   const { data, error } = await supabase.rpc('create_service_record', {
     p_student_id: studentId,
     p_item_codes: itemCodes,

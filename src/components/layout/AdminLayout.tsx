@@ -1,7 +1,7 @@
 import { BarChart3, Download, FileSpreadsheet, History, Import, LogOut, Menu, Settings, Users } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '../ui/Button'
 import { isSupabaseConfigured, supabase } from '../../lib/supabase'
 import { getActiveStaffProfile, signOutStaff } from '../../services/authService'
@@ -21,6 +21,7 @@ const navItems = [
 export function AdminLayout({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [authReady, setAuthReady] = useState(!isSupabaseConfigured)
+  const location = useLocation()
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -28,7 +29,12 @@ export function AdminLayout({ children }: { children: ReactNode }) {
 
     let cancelled = false
     void getActiveStaffProfile().then((profile) => {
-      if (!profile) navigate('/nurse/admin/login', { replace: true })
+      if (!profile) {
+        navigate('/nurse/admin/login', {
+          replace: true,
+          state: { from: `${location.pathname}${location.search}` },
+        })
+      }
       if (!cancelled) setAuthReady(true)
     })
 
@@ -40,7 +46,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
       cancelled = true
       subscription.unsubscribe()
     }
-  }, [navigate])
+  }, [location.pathname, location.search, navigate])
 
   if (!authReady) return <div className="p-8 text-sm text-slate-600">กำลังตรวจสอบสิทธิ์...</div>
 
@@ -79,7 +85,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           </nav>
         </aside>
 
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           <header className="border-b border-slate-200 bg-white px-4 py-4 lg:px-8">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">

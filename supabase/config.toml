@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.service-submit]
 verify_jwt = false
+
+[functions.public-recent-reports]
+verify_jwt = false

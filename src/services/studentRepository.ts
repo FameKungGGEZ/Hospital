@@ -1,47 +1,20 @@
 import { getServiceRecords, getStudentDirectory } from './browserDataStore'
+import { getLocalDateKey } from '../lib/dateUtils'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import type { ServiceRecord, Student } from '../types'
 
 export type ServiceHistoryRecord = ServiceRecord & { student?: Student }
+export type ServiceHistoryPage = { records: ServiceHistoryRecord[]; total: number }
 
-export async function getCurrentStudentRoster(): Promise<Student[]> {
-  if (!isSupabaseConfigured || !supabase) return getStudentDirectory()
-
-  const { data, error } = await supabase
-    .from('student_academic_records')
-    .select('student_id, number, sex, name, surname, class, academic_year, students!inner(current_status)')
-    .eq('is_active', true)
-
-  if (error) throw new Error('โหลดรายชื่อนักเรียนปัจจุบันไม่สำเร็จ')
-
-  return (data ?? []).map((record) => {
-    const profile = record.students as unknown as { current_status: Student['status'] }
-    return {
-      student_id: record.student_id,
-      number: record.number ?? 0,
-      sex: record.sex as Student['sex'],
-      name: record.name,
-      surname: record.surname,
-      class_name: record.class,
-      academic_year: record.academic_year,
-      status: profile.current_status,
-    }
-  })
+type ServiceHistoryRow = {
+  id: number
+  service_datetime: string
+  student_id: string
+  academic_record_id: string
 }
 
-export async function getServiceHistory(): Promise<ServiceHistoryRecord[]> {
-  if (!isSupabaseConfigured || !supabase) {
-    const studentsById = new Map(getStudentDirectory().map((student) => [student.student_id, student]))
-    return getServiceRecords().map((record) => ({ ...record, student: studentsById.get(record.student_id) }))
-  }
-
-  const { data: records, error: recordsError } = await supabase
-    .from('service_records')
-    .select('id, service_datetime, student_id, academic_record_id')
-    .order('service_datetime', { ascending: false })
-
-  if (recordsError) throw new Error('โหลดประวัติการใช้บริการไม่สำเร็จ')
-  if (!records?.length) return []
+async function hydrateServiceHistory(records: ServiceHistoryRow[]): Promise<ServiceHistoryRecord[]> {
+  if (!supabase || records.length === 0) return []
 
   const recordIds = records.map((record) => record.id)
   const academicIds = [...new Set(records.map((record) => record.academic_record_id))]
@@ -91,4 +64,96 @@ export async function getServiceHistory(): Promise<ServiceHistoryRecord[]> {
       student,
     }
   })
+}
+
+export async function getCurrentStudentRoster(): Promise<Student[]> {
+  if (!isSupabaseConfigured || !supabase) return getStudentDirectory()
+
+  const pageSize = 500
+  const rows = []
+  for (let start = 0; ; start += pageSize) {
+    const { data, error } = await supabase
+      .from('student_academic_records')
+      .select('student_id, number, sex, name, surname, class, academic_year, students!inner(current_status)')
+      .eq('is_active', true)
+      .order('student_id', { ascending: true })
+      .range(start, start + pageSize - 1)
+
+    if (error) throw new Error('โหลดรายชื่อนักเรียนปัจจุบันไม่สำเร็จ')
+    rows.push(...(data ?? []))
+    if ((data ?? []).length < pageSize) break
+  }
+
+  return rows.map((record) => {
+    const profile = record.students as unknown as { current_status: Student['status'] }
+    return {
+      student_id: record.student_id,
+      number: record.number ?? 0,
+      sex: record.sex as Student['sex'],
+      name: record.name,
+      surname: record.surname,
+      class_name: record.class,
+      academic_year: record.academic_year,
+      status: profile.current_status,
+    }
+  })
+}
+
+export async function getServiceHistory(): Promise<ServiceHistoryRecord[]> {
+  if (!isSupabaseConfigured || !supabase) {
+    const studentsById = new Map(getStudentDirectory().map((student) => [student.student_id, student]))
+    return getServiceRecords().map((record) => ({ ...record, student: studentsById.get(record.student_id) }))
+  }
+
+  const pageSize = 500
+  const history: ServiceHistoryRecord[] = []
+  for (let start = 0; ; start += pageSize) {
+    const { data, error } = await supabase
+      .from('service_records')
+      .select('id, service_datetime, student_id, academic_record_id')
+      .order('service_datetime', { ascending: false })
+      .range(start, start + pageSize - 1)
+
+    if (error) throw new Error('โหลดประวัติการใช้บริการไม่สำเร็จ')
+    const records = data ?? []
+    history.push(...await hydrateServiceHistory(records))
+    if (records.length < pageSize) break
+  }
+  return history
+}
+
+export async function getServiceHistoryPage(
+  dateKey: string,
+  page: number,
+  pageSize: number,
+): Promise<ServiceHistoryPage> {
+  const safePage = Math.max(1, Math.floor(page))
+  const safePageSize = [10, 25, 50, 100].includes(pageSize) ? pageSize : 10
+  const start = (safePage - 1) * safePageSize
+
+  if (!isSupabaseConfigured || !supabase) {
+    const records = (await getServiceHistory())
+      .filter((record) => getLocalDateKey(new Date(record.service_datetime)) === dateKey)
+      .sort((first, second) => second.service_datetime.localeCompare(first.service_datetime))
+    return { records: records.slice(start, start + safePageSize), total: records.length }
+  }
+
+  const startDate = new Date(`${dateKey}T00:00:00`)
+  if (Number.isNaN(startDate.getTime()) || getLocalDateKey(startDate) !== dateKey) {
+    throw new Error('วันที่ไม่ถูกต้อง')
+  }
+  const endDate = new Date(startDate)
+  endDate.setDate(endDate.getDate() + 1)
+
+  const { data, count, error } = await supabase
+    .from('service_records')
+    .select('id, service_datetime, student_id, academic_record_id', { count: 'exact' })
+    .gte('service_datetime', startDate.toISOString())
+    .lt('service_datetime', endDate.toISOString())
+    .order('service_datetime', { ascending: false })
+    .range(start, start + safePageSize - 1)
+
+  if (error) throw new Error('โหลดรายงานการใช้บริการไม่สำเร็จ')
+  const records = await hydrateServiceHistory(data ?? [])
+  return { records, total: count ?? 0 }
 }

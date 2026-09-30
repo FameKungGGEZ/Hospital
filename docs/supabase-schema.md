@@ -253,8 +253,8 @@ Recommended policy summary:
 
 - `students` table: admin/staff can read, public cannot read list
 - `student_academic_records`: staff can read; admin can write
-- `service_records`: staff can read/write; public submissions go through the server-side creation function
-- `service_record_items`: staff can read/write; public submissions go through the server-side creation function
+- `service_records`: staff can read; service-record writes go through the server-side submission function
+- `service_record_items`: staff can read; service-record writes go through the server-side submission function
 - `users`: only admin/staff can read own profile and list if allowed
 - `audit_logs`: admin only
 
